@@ -1,0 +1,37 @@
+name: Build LambdaEvents
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # Скачиваем SCP:SL Dedicated Server (app 996560), чтобы взять из него DLL игры для сборки.
+      # Первый запуск долгий (несколько минут) - это нормально.
+      - name: Download SCP:SL Dedicated Server (references)
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/slserver"
+          docker run --rm -v "$GITHUB_WORKSPACE/slserver:/slserver" steamcmd/steamcmd:latest \
+            +force_install_dir /slserver +login anonymous +app_update 996560 validate +quit
+          ls "$GITHUB_WORKSPACE/slserver/SCPSL_Data/Managed" | head -n 50
+
+      - name: Build plugin
+        env:
+          SL_REFERENCES: ${{ github.workspace }}/slserver/SCPSL_Data/Managed
+        run: dotnet build LambdaEvents.csproj -c Release -o out
+
+      - name: Upload plugin DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: LambdaEvents
+          path: out/LambdaEvents.dll
